@@ -9,6 +9,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // host is the small slice of the machine the planner touches. Tests use a
@@ -21,6 +22,7 @@ type host interface {
 	Run(name string, args ...string) (string, error)
 	RunRoot(name string, args ...string) (string, error)
 	Glob(pattern string) ([]string, error)
+	ModTime(path string) (time.Time, error)
 	Look(name string) bool
 	User() string
 	PrimeRoot() error
@@ -89,6 +91,14 @@ func (h *realHost) RunRoot(name string, args ...string) (string, error) {
 
 func (h *realHost) Glob(pattern string) ([]string, error) {
 	return filepath.Glob(pattern)
+}
+
+func (h *realHost) ModTime(path string) (time.Time, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return info.ModTime(), nil
 }
 
 func (h *realHost) Look(name string) bool {

@@ -53,6 +53,8 @@ func (a *app) run(args []string) int {
 		return a.off(dryRun)
 	case "status":
 		return a.status()
+	case "idle":
+		return a.idle(dryRun)
 	case "help", "-h", "--help":
 		a.usage(a.out)
 		return 0
@@ -113,6 +115,11 @@ func (a *app) on(dryRun bool) int {
 			fmt.Fprintf(a.errOut, "error: mark phone mode active: %v\n", err)
 			return 1
 		}
+		// A leftover idle profile belongs to the previous phone-mode session.
+		if err := a.store.RemoveIdle(); err != nil {
+			fmt.Fprintf(a.errOut, "error: clear stale idle state: %v\n", err)
+			return 1
+		}
 		fmt.Fprintf(a.out, "snapshot saved to %s\n", a.store.statePath())
 	}
 
@@ -169,11 +176,19 @@ func (a *app) off(dryRun bool) int {
 		if haveState {
 			fmt.Fprintf(a.out, "dry run: %s would be removed\n", a.store.statePath())
 		}
+		if a.store.IdleExists() {
+			fmt.Fprintf(a.out, "dry run: %s would be removed\n", a.store.idlePath())
+		}
 		return 0
 	}
 
 	if err := a.store.ClearActive(); err != nil {
 		errs = append(errs, fmt.Errorf("clear active marker: %w", err))
+	}
+	if a.store.IdleExists() {
+		if err := a.store.RemoveIdle(); err != nil {
+			errs = append(errs, fmt.Errorf("remove idle state: %w", err))
+		}
 	}
 	if haveState {
 		if len(errs) == 0 {
@@ -325,7 +340,26 @@ func (a *app) status() int {
 	} else {
 		fmt.Fprintln(a.out, "battery mode: off")
 	}
+
+	switch {
+	case !cfg.Idle.Enabled:
+		fmt.Fprintln(a.out, "idle profile: disabled")
+	case a.store.IdleExists():
+		fmt.Fprintln(a.out, "idle profile: applied (CPU capped, bot still online)")
+	default:
+		fmt.Fprintf(a.out, "idle profile: waiting for %d quiet minutes\n", cfg.Idle.QuietMinutes)
+	}
 	return 0
+}
+
+// phoneModeActive requires both the marker and an inactive graphical target.
+// The marker alone is accepted when the target cannot be queried.
+func (a *app) phoneModeActive() bool {
+	if !a.store.Active() {
+		return false
+	}
+	graphical, err := systemUnitActive(a.host, "graphical.target")
+	return err != nil || !graphical
 }
 
 func (a *app) serviceSummary(cfg Config) string {
@@ -355,11 +389,12 @@ func (a *app) report(errs []error) {
 }
 
 func (a *app) usage(w io.Writer) {
-	fmt.Fprintf(w, `Usage: opencode-phone-mode <on|off|status> [--dry-run]
+	fmt.Fprintf(w, `Usage: opencode-phone-mode <on|off|status|idle> [--dry-run]
 
   on      snapshot settings, then switch to headless phone mode
   off     restore the snapshot, then return to graphical.target
   status  show current mode, settings, and battery
+  idle    apply or restore the quiet-time CPU profile in phone mode
 
   --dry-run   print every change with current and new values; apply nothing
 

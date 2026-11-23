@@ -53,6 +53,45 @@ func TestStateRoundTrip(t *testing.T) {
 	}
 }
 
+func TestIdleStateRoundTrip(t *testing.T) {
+	store := stateStore{dir: t.TempDir()}
+	applied := time.Date(2026, 11, 23, 11, 0, 0, 0, time.UTC)
+	want := IdleState{
+		Version:   idleVersion,
+		AppliedAt: applied,
+		MaxFreq:   []SysValue{{Path: "/sys/policy0/scaling_max_freq", Value: "2000000"}},
+	}
+	if err := store.SaveIdle(want); err != nil {
+		t.Fatalf("SaveIdle: %v", err)
+	}
+	got, err := store.LoadIdle()
+	if err != nil {
+		t.Fatalf("LoadIdle: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("round trip mismatch:\n got %+v\nwant %+v", got, want)
+	}
+	if err := store.RemoveIdle(); err != nil {
+		t.Fatalf("RemoveIdle: %v", err)
+	}
+	if store.IdleExists() {
+		t.Error("IdleExists = true after RemoveIdle")
+	}
+}
+
+func TestIdleStateMissingAndVersion(t *testing.T) {
+	store := stateStore{dir: t.TempDir()}
+	if _, err := store.LoadIdle(); !errors.Is(err, errNoState) {
+		t.Fatalf("LoadIdle error = %v, want errNoState", err)
+	}
+	if err := store.SaveIdle(IdleState{Version: 99, AppliedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.LoadIdle(); err == nil {
+		t.Fatal("LoadIdle accepted an unknown version")
+	}
+}
+
 func TestStateMissing(t *testing.T) {
 	store := stateStore{dir: t.TempDir()}
 	_, err := store.Load()

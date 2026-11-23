@@ -143,6 +143,12 @@ Your `~/.config/opencode/AGENTS.md` battery-mode rule checks the
 `~/.cache/opencode-phone-mode/active` marker, so agents are asked to stay light
 while the desktop is gone.
 
+The bot log mtimes in `~/.config/opencode-telegram-bot/logs` are also the
+activity signal for the quiet-time idle profile: after 10 quiet minutes the CPU
+cap drops, and the next log write restores it. The profile never suspends the
+machine, so the bot stays reachable. See the README for the root timer that
+runs this check every minute.
+
 ## Troubleshooting
 
 - **`opencode-telegram status` says stopped.** Expected under systemd. Use

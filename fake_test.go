@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io/fs"
 	"strings"
+	"time"
 )
 
 type fakeHost struct {
 	files     map[string]string
 	globs     map[string][]string
 	outputs   map[string]string
+	mtimes    map[string]time.Time
 	runErrs   map[string]error
 	writeErrs map[string]error
 	removeErr map[string]error
@@ -56,6 +58,7 @@ func newFakeHost() *fakeHost {
 			"systemctl --user show -p UnitFileState --value -- opencode-telegram.service": "enabled",
 			"loginctl show-user testuser -p Linger --value":                               "no",
 		},
+		mtimes:    map[string]time.Time{},
 		runErrs:   map[string]error{},
 		writeErrs: map[string]error{},
 		removeErr: map[string]error{},
@@ -106,6 +109,14 @@ func (f *fakeHost) RunRoot(name string, args ...string) (string, error) {
 
 func (f *fakeHost) Glob(pattern string) ([]string, error) {
 	return f.globs[pattern], nil
+}
+
+func (f *fakeHost) ModTime(path string) (time.Time, error) {
+	at, ok := f.mtimes[path]
+	if !ok {
+		return time.Time{}, fmt.Errorf("stat %s: %w", path, fs.ErrNotExist)
+	}
+	return at, nil
 }
 
 func (f *fakeHost) Look(name string) bool { return f.look[name] }

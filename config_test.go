@@ -81,6 +81,9 @@ func TestConfigRejectsBadInput(t *testing.T) {
 		{"bad lid action", `lid_switch = "explode"`, "lid_switch"},
 		{"bad restore lid", "[restore]\nlid_switch = \"explode\"", "restore.lid_switch"},
 		{"negative battery threshold", "battery_exit_percent = -1", "battery_exit_percent"},
+		{"idle zero quiet", "[idle]\nquiet_minutes = 0", "idle.quiet_minutes"},
+		{"idle cap zero", "[idle]\ncpu_max_freq_percent = 0", "idle.cpu_max_freq_percent"},
+		{"idle cap high", "[idle]\ncpu_max_freq_percent = 101", "idle.cpu_max_freq_percent"},
 		{"unknown key", "brightnes = 10", "brightnes"},
 		{"path in device", `backlight_device = "../evil"`, "backlight_device"},
 	}
@@ -98,6 +101,17 @@ func TestConfigRejectsBadInput(t *testing.T) {
 				t.Errorf("error %q does not mention %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestConfigAllowsBadIdleValuesWhenDisabled(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	data := "[idle]\nenabled = false\nquiet_minutes = 0\ncpu_max_freq_percent = 0\n"
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := LoadConfig(path); err != nil {
+		t.Fatalf("LoadConfig: %v", err)
 	}
 }
 

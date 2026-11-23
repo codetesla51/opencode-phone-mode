@@ -37,6 +37,7 @@ opencode-phone-mode off
 
 opencode-phone-mode on --dry-run
 opencode-phone-mode off --dry-run
+opencode-phone-mode idle --dry-run
 ```
 
 `--dry-run` prints every change as `setting: current -> new`, makes no
@@ -61,6 +62,38 @@ Telegram API.
 [TELEGRAM_SETUP.md](TELEGRAM_SETUP.md) covers the whole chain: creating the bot,
 the `.env` values for OpenCode V2, the two systemd units, enabling linger, and
 troubleshooting failed message delivery.
+
+## Quiet-time idle profile
+
+Standing by still costs power. After the bot log has been quiet for
+`idle.quiet_minutes`, the idle profile lowers the CPU cap from the phone-mode
+value (40% by default) to `idle.cpu_max_freq_percent` (20% by default). The bot
+stays online and replies immediately; only the CPU ceiling changes. It never
+suspends, because a sleeping machine cannot answer Telegram.
+
+Activity is the modification time of the newest `bot-*.log` in
+`~/.config/opencode-telegram-bot/logs`. A new message or reply updates it. On
+the next check, the tool writes the exact `scaling_max_freq` values it saved
+before capping, then deletes `idle.json`. A failed restore keeps that file so
+it can be retried. `off` also restores the original values from `state.json`
+and clears the idle state.
+
+This needs a root systemd timer because CPU sysfs files are root-owned and
+`sudo` needs a password here. After `make install`:
+
+```sh
+make install-idle-timer
+```
+
+It asks for your password once, installs `opencode-phone-mode-idle.service` and
+`.timer` into `/etc/systemd/system`, substitutes your home and user into them,
+and enables the timer. It checks every minute, does nothing outside phone mode,
+and does not need a password at runtime. `status` shows whether the profile is
+applied. To stop using it, set `enabled = false` under `[idle]`, or run
+`sudo systemctl disable --now opencode-phone-mode-idle.timer`.
+
+The saving is modest: the display and desktop are already off in phone mode.
+This mainly lowers peak power and heat during long idle stretches.
 
 ## Battery life
 
@@ -131,6 +164,15 @@ the config is loaded.
 | `manage_services` | `true` | `false` leaves linger and `keep_services` as they were. |
 | `isolate_target` | `true` | `false` keeps the current target; no isolation happens. |
 | `battery_exit_percent` | `15` | 0-100; `0` disables the guard. `status` warns below it and `on` refuses while discharging. Charging/full always pass. |
+
+### Idle options (`[idle]`)
+
+| Key | Default | Values and effect |
+|---|---|---|
+| `enabled` | `true` | `false` disables the quiet-time profile entirely. |
+| `quiet_minutes` | `10` | Minimum quiet time before applying it. Must be at least 1 when enabled. |
+| `cpu_max_freq_percent` | `20` | Idle CPU cap, 1-100% of hardware maximum, clamped at `scaling_min_freq`. Set below `cpu_max_freq_percent` to have an effect. |
+| `activity_log_dir` | `""` | Directory containing `bot-*.log`. Empty uses `~/.config/opencode-telegram-bot/logs`. Only mtimes are read. |
 
 Any `manage_*` switch set to `false` means that setting is neither snapshotted
 nor changed, so `off` will not restore it either.

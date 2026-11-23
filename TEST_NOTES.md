@@ -14,6 +14,12 @@ failed restore keeps the state file so `off` can be retried.
 changes. Individual step failures never stop later steps; they are collected
 and reported at the end.
 
+`idle` only runs in phone mode. It uses the newest `bot-*.log` mtime as the
+activity signal, saves exact `scaling_max_freq` values to `idle.json` before
+lowering them, and restores those values on activity. It never suspends. A
+failed restore keeps `idle.json` so the retry has the saved values. `on` clears
+stale idle state; `off` clears it after a successful restore.
+
 ## Attacks covered
 
 - Config: missing file, defaults, overrides, unknown keys, out-of-range
@@ -34,6 +40,10 @@ and reported at the end.
 - Lid: commented defaults ignored, explicit overrides win.
 - dGPU detection: boot VGA skipped, 3D controllers detected, non-display
   devices ignored.
+- Idle profile: quiet threshold, newest log wins, no logs means no apply,
+  dry-run writes nothing, exact cap saved before write, restore on activity,
+  failed restore keeps state, disabled/no-phone-mode no-ops, `on`/`off` cleanup,
+  idle state round-trip and version check, invalid idle config values.
 
 ## Bugs found and fixed
 

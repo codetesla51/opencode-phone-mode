@@ -108,6 +108,32 @@ isolate_target = true
 # Default: 15
 battery_exit_percent = 15
 
+# --- Idle profile ------------------------------------------------------------
+
+# After the Telegram bot has been quiet, lower the CPU ceiling further. The
+# bot stays online and replies at full speed; this only caps peak frequency.
+# This section is used only while phone mode is active.
+# Default: true
+[idle]
+enabled = true
+
+# Minutes without bot log activity before the idle profile is applied.
+# The timer checks once a minute, so the change happens within a minute of
+# this threshold. Activity restores the previous cap on the next check.
+# Default: 10
+quiet_minutes = 10
+
+# CPU cap in the idle profile, 1-100 percent of each policy's hardware max.
+# Clamped at scaling_min_freq. Must be lower than cpu_max_freq_percent to
+# actually reduce the cap.
+# Default: 20
+cpu_max_freq_percent = 20
+
+# Directory containing bot-*.log files. Their modification times are the
+# activity signal. Empty uses ~/.config/opencode-telegram-bot/logs.
+# Default: ""
+activity_log_dir = ""
+
 # --- Restore fallback --------------------------------------------------------
 
 # These values are used only when off runs without state.json. With a state

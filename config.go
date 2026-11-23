@@ -43,9 +43,31 @@ type Config struct {
 
 	BatteryExitPercent int `toml:"battery_exit_percent"`
 
+	Idle IdleConfig `toml:"idle"`
+
 	// Restore is only used when off runs without a state file: exact values
 	// are unknown, so these are the fallback desktop values.
 	Restore RestoreConfig `toml:"restore"`
+}
+
+// IdleConfig controls the quiet-time power profile. It only runs in phone
+// mode and only lowers the CPU ceiling; the bot stays reachable.
+type IdleConfig struct {
+	Enabled           bool   `toml:"enabled"`
+	QuietMinutes      int    `toml:"quiet_minutes"`
+	CPUMaxFreqPercent int    `toml:"cpu_max_freq_percent"`
+	ActivityLogDir    string `toml:"activity_log_dir"`
+}
+
+func (c Config) activityLogDir() string {
+	if c.Idle.ActivityLogDir != "" {
+		return c.Idle.ActivityLogDir
+	}
+	base, err := os.UserConfigDir()
+	if err != nil {
+		base = filepath.Join(os.Getenv("HOME"), ".config")
+	}
+	return filepath.Join(base, "opencode-telegram-bot", "logs")
 }
 
 type RestoreConfig struct {
@@ -86,6 +108,13 @@ func DefaultConfig() Config {
 		IsolateTarget:  true,
 
 		BatteryExitPercent: 15,
+
+		Idle: IdleConfig{
+			Enabled:           true,
+			QuietMinutes:      10,
+			CPUMaxFreqPercent: 20,
+			ActivityLogDir:    "",
+		},
 
 		Restore: RestoreConfig{
 			Brightness:        100,
@@ -132,6 +161,14 @@ func (c Config) Validate() error {
 	}
 	if c.BatteryExitPercent < 0 || c.BatteryExitPercent > 100 {
 		return fmt.Errorf("battery_exit_percent must be between 0 and 100, got %d", c.BatteryExitPercent)
+	}
+	if c.Idle.Enabled {
+		if c.Idle.QuietMinutes < 1 {
+			return fmt.Errorf("idle.quiet_minutes must be at least 1, got %d", c.Idle.QuietMinutes)
+		}
+		if c.Idle.CPUMaxFreqPercent < 1 || c.Idle.CPUMaxFreqPercent > 100 {
+			return fmt.Errorf("idle.cpu_max_freq_percent must be between 1 and 100, got %d", c.Idle.CPUMaxFreqPercent)
+		}
 	}
 
 	if c.Restore.Brightness < 0 || c.Restore.Brightness > 100 {

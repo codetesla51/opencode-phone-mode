@@ -1,0 +1,13 @@
+[Unit]
+Description=opencode-phone-mode quiet-time power profile
+Documentation=file:@HOME@/projects/opencode-phone-mode/README.md
+
+[Service]
+Type=oneshot
+# Runs as root so /sys CPU writes need no password. Point the CLI at the
+# normal user's config and cache so it reads the same settings and state.
+Environment=HOME=@HOME@
+Environment=USER=@USER@
+Environment=XDG_CONFIG_HOME=@HOME@/.config
+Environment=XDG_CACHE_HOME=@HOME@/.cache
+ExecStart=@HOME@/.local/bin/opencode-phone-mode idle
