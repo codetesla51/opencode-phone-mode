@@ -50,6 +50,18 @@ first, or delete the stale state file yourself.
 `battery_exit_percent` and the machine is not charging. `status` prints the
 same warning without blocking anything.
 
+## Telegram control path
+
+Phone mode is only useful if you can still reach the machine after the desktop
+is gone. Here the path is Telegram → `opencode-telegram.service` →
+`opencode-serve.service` → OpenCode sessions. Both are `systemd --user` units
+listed in `keep_services`, and Wi-Fi stays unblocked so the bot can reach the
+Telegram API.
+
+[TELEGRAM_SETUP.md](TELEGRAM_SETUP.md) covers the whole chain: creating the bot,
+the `.env` values for OpenCode V2, the two systemd units, enabling linger, and
+troubleshooting failed message delivery.
+
 ## Battery life
 
 The main saving is the display and the desktop session, not the CPU knobs.
