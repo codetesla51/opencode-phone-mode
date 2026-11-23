@@ -1,0 +1,62 @@
+# opencode-phone-mode configuration.
+# Every behavior can be switched off independently.
+
+# systemd --user units that must keep running in phone mode.
+keep_services = ["opencode-serve.service", "opencode-telegram.service"]
+
+# rfkill types that stay enabled. Everything else is soft-blocked.
+# "wifi" is accepted as an alias for "wlan".
+keep_radios_on = ["wlan"]
+
+# Backlight percentage in phone mode; -1 leaves it untouched.
+manage_backlight = true
+brightness = 0
+# Empty picks the first /sys/class/backlight device.
+backlight_device = ""
+
+# CPU governor in phone mode.
+manage_governor = true
+governor = "powersave"
+
+# Cap each policy's scaling_max_freq to this percentage of cpuinfo_max_freq.
+manage_max_freq = true
+cpu_max_freq_percent = 40
+
+# Turbo boost in phone mode.
+manage_turbo = true
+turbo = false
+
+# Run powertop --auto-tune. This changes kernel tunables that off cannot undo.
+powertop = true
+
+# Put non-boot display controllers into runtime suspend, and switch off
+# bbswitch/nvidia-persistenced when present.
+disable_dgpu = true
+
+# logind lid action in phone mode: "ignore" keeps running with the lid closed.
+manage_lid = true
+lid_switch = "ignore"
+
+# Soft-block every radio type not listed in keep_radios_on.
+manage_radios = true
+
+# Enable linger, enable and restart keep_services; off restores their state.
+manage_services = true
+
+# Isolate multi-user.target on and graphical.target off.
+isolate_target = true
+
+# status warns below this battery percentage; on refuses to go headless.
+# 0 disables the check.
+battery_exit_percent = 15
+
+# Fallback values used by off when state.json is missing.
+[restore]
+brightness = 100
+# Empty leaves the current governor alone.
+governor = ""
+cpu_max_freq_percent = 100
+turbo = true
+lid_switch = "suspend"
+bluetooth = true
+services_running = true
