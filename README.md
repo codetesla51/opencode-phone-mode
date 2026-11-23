@@ -90,26 +90,58 @@ of headroom. Lower it if you want more runway.
 
 ## Configuration
 
-The file is `~/.config/opencode-phone-mode/config.toml`. Missing keys use the
-defaults documented in [`config.example.toml`](config.example.toml). Unknown
-keys are rejected so typos do not silently disable a feature.
+The file is `~/.config/opencode-phone-mode/config.toml`. Every key is optional:
+omitted keys use the default shown in [`config.example.toml`](config.example.toml),
+which is also the template installed by `make install`. Unknown keys are
+rejected so typos do not silently disable a feature. Values are validated when
+the config is loaded.
 
-Every behavior can be disabled:
+### Main options
 
-- `manage_backlight`, `manage_governor`, `manage_max_freq`, `manage_turbo`
-- `manage_lid`, `manage_radios`, `manage_services`, `isolate_target`
-- `powertop`, `disable_dgpu`
+| Key | Default | Values and effect |
+|---|---|---|
+| `keep_services` | `["opencode-serve.service", "opencode-telegram.service"]` | systemd **user** units to survive the switch. Active units are left running; inactive ones are enabled and started. Never restarted, so `on` cannot kill the session that launched it. |
+| `keep_radios_on` | `["wlan"]` | rfkill types left unblocked: `wlan`, `bluetooth`, `wwan`, `gps`, `nfc`, `ufs`, `wimax`. `wifi` is an alias for `wlan`. Every other type is soft-blocked. |
+| `manage_backlight` | `true` | `false` leaves the backlight untouched. |
+| `brightness` | `0` | Backlight percentage, 0-100. `-1` leaves it untouched. |
+| `backlight_device` | `""` | Device name under `/sys/class/backlight`, e.g. `intel_backlight`. Empty picks the first device. |
+| `manage_governor` | `true` | `false` leaves the governor untouched. |
+| `governor` | `"powersave"` | Any governor from `scaling_available_governors`, e.g. `powersave`, `performance`, `schedutil`, `ondemand`. |
+| `manage_max_freq` | `true` | `false` leaves `scaling_max_freq` untouched. |
+| `cpu_max_freq_percent` | `40` | Cap each CPU policy to 1-100% of its hardware maximum; clamped at `scaling_min_freq`. |
+| `manage_turbo` | `true` | `false` leaves turbo untouched. |
+| `turbo` | `false` | Turbo on/off. |
+| `powertop` | `true` | Run `powertop --auto-tune`. Needs `powertop` installed and has no portable undo. `false` skips it. |
+| `disable_dgpu` | `true` | Runtime-suspend non-boot GPUs, plus bbswitch/nvidia-persistenced when present. `false` leaves GPU settings alone. |
+| `manage_lid` | `true` | `false` leaves logind lid settings untouched. |
+| `lid_switch` | `"ignore"` | `ignore`, `suspend`, `hibernate`, `hybrid-sleep`, `suspend-then-hibernate`, `poweroff`, `reboot`, `halt`, `kexec`, `lock`. |
+| `manage_radios` | `true` | `false` leaves every rfkill device as it was. |
+| `manage_services` | `true` | `false` leaves linger and `keep_services` as they were. |
+| `isolate_target` | `true` | `false` keeps the current target; no isolation happens. |
+| `battery_exit_percent` | `15` | 0-100; `0` disables the guard. `status` warns below it and `on` refuses while discharging. Charging/full always pass. |
 
-`keep_services` lists systemd **user** units. Active units are left running;
-inactive ones are enabled and started. They are never restarted, so `on` cannot
-kill the session that launched it.
+Any `manage_*` switch set to `false` means that setting is neither snapshotted
+nor changed, so `off` will not restore it either.
 
-`keep_radios_on` lists rfkill types to leave enabled. `wifi` is accepted as an
-alias for `wlan`. Every other radio type is soft-blocked.
+### Restore fallback (`[restore]`)
 
-If `off` runs without `state.json`, it prints a warning and uses the `[restore]`
-section as the fallback desktop values. Restores are attempted independently;
-if any step fails, the state file is kept so `off` can be retried.
+Used only when `off` runs without `state.json`. With a state file present,
+`off` restores the recorded values exactly and ignores this table.
+
+| Key | Default | Effect |
+|---|---|---|
+| `brightness` | `100` | Backlight percentage, 0-100. |
+| `governor` | `""` | Governor name, or empty to leave it alone. |
+| `cpu_max_freq_percent` | `100` | Frequency cap, 1-100% of hardware maximum. |
+| `turbo` | `true` | Turbo on/off. |
+| `lid_switch` | `"suspend"` | Lid action (same values as above), or empty to remove our drop-in and use the system default. |
+| `bluetooth` | `true` | Leave Bluetooth unblocked and its service running. |
+| `services_running` | `true` | Enable linger and start `keep_services`. |
+
+`off` prints a warning when it falls back to these values. Restores are
+attempted independently; if any step fails, the state file is kept so `off`
+can be retried. Use `on --dry-run` and `off --dry-run` to preview the effect of
+a config change before applying it.
 
 ## What is snapshotted
 

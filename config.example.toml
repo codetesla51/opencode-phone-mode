@@ -1,62 +1,137 @@
 # opencode-phone-mode configuration.
-# Every behavior can be switched off independently.
+#
+# Every key is optional: omitted keys keep the default shown below.
+# Unknown keys are rejected, so check spelling when copying examples.
+# Values are validated when the config is loaded.
 
-# systemd --user units that must keep running in phone mode.
+# --- Services and radios ----------------------------------------------------
+
+# systemd --user units that must survive the switch to multi-user.target.
+# Units already active are left running; inactive ones are enabled and started.
+# Default: ["opencode-serve.service", "opencode-telegram.service"]
 keep_services = ["opencode-serve.service", "opencode-telegram.service"]
 
-# rfkill types that stay enabled. Everything else is soft-blocked.
+# rfkill device types that stay unblocked. Every other type is soft-blocked.
+# Common values: "wlan", "bluetooth", "wwan", "gps", "nfc", "ufs", "wimax".
 # "wifi" is accepted as an alias for "wlan".
+# Default: ["wlan"]
 keep_radios_on = ["wlan"]
 
-# Backlight percentage in phone mode; -1 leaves it untouched.
+# --- Backlight ---------------------------------------------------------------
+
+# false leaves the backlight completely untouched (no snapshot, no change).
+# Default: true
 manage_backlight = true
+
+# Backlight percentage in phone mode: 0-100. Use -1 to leave it untouched.
+# Default: 0
 brightness = 0
-# Empty picks the first /sys/class/backlight device.
+
+# Device name under /sys/class/backlight, e.g. "intel_backlight".
+# Empty picks the first device found.
+# Default: ""
 backlight_device = ""
 
-# CPU governor in phone mode.
+# --- CPU --------------------------------------------------------------------
+
+# false leaves the governor completely untouched.
+# Default: true
 manage_governor = true
+
+# Any governor listed in
+# /sys/devices/system/cpu/cpufreq/policy*/scaling_available_governors
+# (for example "powersave", "performance", "schedutil", "ondemand").
+# Default: "powersave"
 governor = "powersave"
 
-# Cap each policy's scaling_max_freq to this percentage of cpuinfo_max_freq.
+# false leaves scaling_max_freq completely untouched.
+# Default: true
 manage_max_freq = true
+
+# Cap each CPU policy's scaling_max_freq to this percentage of its hardware
+# maximum: 1-100. The kernel's scaling_min_freq is the lower bound.
+# Default: 40
 cpu_max_freq_percent = 40
 
-# Turbo boost in phone mode.
+# false leaves turbo completely untouched.
+# Default: true
 manage_turbo = true
+
+# Turbo boost in phone mode: true or false.
+# Default: false
 turbo = false
 
-# Run powertop --auto-tune. This changes kernel tunables that off cannot undo.
+# --- Other power settings ----------------------------------------------------
+
+# Run powertop --auto-tune. Needs powertop installed. It changes kernel tunables
+# that off has no portable way to undo. Set false to skip it entirely.
+# Default: true
 powertop = true
 
-# Put non-boot display controllers into runtime suspend, and switch off
-# bbswitch/nvidia-persistenced when present.
+# Put non-boot display controllers into runtime suspend (power/control=auto),
+# switch off bbswitch and stop nvidia-persistenced when those exist.
+# Set false to leave all GPU settings alone.
+# Default: true
 disable_dgpu = true
 
-# logind lid action in phone mode: "ignore" keeps running with the lid closed.
+# --- Lid ---------------------------------------------------------------------
+
+# false leaves logind lid settings completely untouched.
+# Default: true
 manage_lid = true
+
+# systemd-logind lid action in phone mode. One of: "ignore", "suspend",
+# "hibernate", "hybrid-sleep", "suspend-then-hibernate", "poweroff",
+# "reboot", "halt", "kexec", "lock".
+# "ignore" keeps the machine running with the lid closed.
+# Default: "ignore"
 lid_switch = "ignore"
 
-# Soft-block every radio type not listed in keep_radios_on.
+# --- Radios, services, target ------------------------------------------------
+
+# false leaves every rfkill device exactly as it was.
+# Default: true
 manage_radios = true
 
-# Enable linger, enable and restart keep_services; off restores their state.
+# false leaves linger and keep_services exactly as they were.
+# Default: true
 manage_services = true
 
-# Isolate multi-user.target on and graphical.target off.
+# false keeps the current systemd target; no isolation happens.
+# Default: true
 isolate_target = true
 
-# status warns below this battery percentage; on refuses to go headless.
-# 0 disables the check.
+# --- Battery guard -----------------------------------------------------------
+
+# status warns below this battery percentage and on refuses to go headless
+# while discharging. 0-100; 0 disables the check. Charging/full always pass.
+# Default: 15
 battery_exit_percent = 15
 
-# Fallback values used by off when state.json is missing.
+# --- Restore fallback --------------------------------------------------------
+
+# These values are used only when off runs without state.json. With a state
+# file present, off restores the recorded values exactly and ignores this table.
 [restore]
+
+# Backlight percentage, 0-100.
 brightness = 100
-# Empty leaves the current governor alone.
+
+# Governor name, or "" to leave the current governor alone.
 governor = ""
+
+# CPU frequency cap, 1-100 percent of hardware maximum.
 cpu_max_freq_percent = 100
+
+# Turbo: true or false.
 turbo = true
+
+# Lid action (same accepted values as lid_switch), or "" to remove our drop-in
+# and fall back to the system default.
 lid_switch = "suspend"
+
+# true leaves Bluetooth unblocked and its service running.
 bluetooth = true
+
+# true enables linger and starts keep_services.
 services_running = true
