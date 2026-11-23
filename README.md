@@ -50,6 +50,44 @@ first, or delete the stale state file yourself.
 `battery_exit_percent` and the machine is not charging. `status` prints the
 same warning without blocking anything.
 
+## Battery life
+
+The main saving is the display and the desktop session, not the CPU knobs.
+On this machine (HP laptop, 34.6 Wh battery, iGPU only), a discharge run in
+phone-mode-style idle use went from 65% to 6% in 9h15m:
+
+- roughly **6.4% per hour**
+- roughly **2.2 W average**
+- extrapolated **14-15 hours** from 100% down to near-empty
+
+A 30-minute check at 65% while piloting showed the gauge barely moving. At
+~2 W that is under 2%, so a flat reading is expected rather than surprising.
+
+What actually saves power here:
+
+- backlight at 0 and no compositor (`multi-user.target`)
+- Bluetooth off
+- the `active` marker telling agents to stay light, so builds and test suites
+  do not start in the background
+
+What does not necessarily save energy:
+
+- the governor is already `powersave` on this machine, so that step changes
+  nothing
+- capping max frequency to 40% lowers peak power and heat, but for a fixed
+  amount of work it mostly makes the work take longer. "Race to idle" can use
+  less total energy. This is why the cap is configurable.
+
+These numbers come from one discharge run on one machine and are not a
+guarantee. Battery wear, Wi-Fi traffic, and workload change the result. The
+watt column in `battery.log` repeats a constant value and is not usable; the
+percentage-over-time is the trustworthy part. To measure your own, charge to
+full, run phone mode, and check `status` at the same time each hour.
+
+`battery_exit_percent` defaults to 15: below that and unplugged, `on` refuses
+so the phone link survives. At ~14-15 hours total, 15% leaves roughly two hours
+of headroom. Lower it if you want more runway.
+
 ## Configuration
 
 The file is `~/.config/opencode-phone-mode/config.toml`. Missing keys use the
