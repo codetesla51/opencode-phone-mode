@@ -40,6 +40,10 @@ stale idle state; `off` clears it after a successful restore.
 - Lid: commented defaults ignored, explicit overrides win.
 - dGPU detection: boot VGA skipped, 3D controllers detected, non-display
   devices ignored.
+- `off` from an already-graphical desktop: no target isolate, no logind
+  restart, while settings are still restored and stale state removed.
+- rfkill restore: numeric ID and type selectors, current blocked state in the
+  label, type fallback when a device name changes across reboot.
 - Idle profile: quiet threshold, newest log wins, no logs means no apply,
   dry-run writes nothing, exact cap saved before write, restore on activity,
   failed restore keeps state, disabled/no-phone-mode no-ops, `on`/`off` cleanup,

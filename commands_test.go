@@ -138,6 +138,7 @@ func TestOnSavesSnapshotAndContinuesAfterFailure(t *testing.T) {
 
 func TestOffRestoresStateAndDeletesIt(t *testing.T) {
 	a, fake, out, errOut := newTestApp(t)
+	fake.outputs["systemctl show -p ActiveState --value -- graphical.target"] = "inactive"
 	saveTestState(t, a.store)
 
 	code := a.run([]string{"off"})
@@ -161,8 +162,37 @@ func TestOffRestoresStateAndDeletesIt(t *testing.T) {
 	}
 }
 
+func TestOffFromDesktopDoesNotDisruptSession(t *testing.T) {
+	a, fake, out, errOut := newTestApp(t)
+	saveTestState(t, a.store)
+
+	code := a.run([]string{"off"})
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0\nout: %s\nerr: %s", code, out, errOut)
+	}
+	if fake.ran("systemctl isolate graphical.target") {
+		t.Error("isolated graphical.target while already in graphical mode")
+	}
+	if fake.ran("systemctl restart systemd-logind") {
+		t.Error("restarted logind while already in graphical mode")
+	}
+	if fake.ran("systemctl kill -s HUP systemd-logind.service") {
+		t.Error("signalled logind while already in graphical mode")
+	}
+	if !fake.wrote("/sys/class/backlight/intel_backlight/brightness", "500") {
+		t.Errorf("brightness not restored: %v", fake.writes)
+	}
+	if a.store.Exists() {
+		t.Error("stale state not removed")
+	}
+	if !strings.Contains(out.String(), "already in graphical mode") {
+		t.Errorf("output = %s", out)
+	}
+}
+
 func TestOffWithoutStateUsesFallback(t *testing.T) {
 	a, fake, out, errOut := newTestApp(t)
+	fake.outputs["systemctl show -p ActiveState --value -- graphical.target"] = "inactive"
 	if err := a.store.MarkActive(); err != nil {
 		t.Fatal(err)
 	}

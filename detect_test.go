@@ -38,6 +38,17 @@ func TestRfkillFlagParsing(t *testing.T) {
 	}
 }
 
+func TestMatchRadioFallsBackToType(t *testing.T) {
+	current := []radio{{ID: 3, Name: "hci1", Type: "bluetooth"}}
+	got := matchRadio(current, RadioState{Name: "hci0", Type: "bluetooth"})
+	if got == nil {
+		t.Fatal("matchRadio did not fall back to type")
+	}
+	if selector := rfkillSelector(*got); selector != "3" {
+		t.Errorf("selector = %q, want numeric ID 3", selector)
+	}
+}
+
 func TestListRadios(t *testing.T) {
 	radios, err := listRadios(newFakeHost())
 	if err != nil {

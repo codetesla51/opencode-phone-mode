@@ -22,6 +22,7 @@ var lidDefaults = map[string]string{
 }
 
 type radio struct {
+	ID          int
 	Name        string
 	Type        string
 	SoftBlocked bool
@@ -34,6 +35,7 @@ func listRadios(h host) ([]radio, error) {
 	}
 	var parsed struct {
 		Devices []struct {
+			ID     int        `json:"id"`
 			Type   string     `json:"type"`
 			Device string     `json:"device"`
 			Soft   rfkillFlag `json:"soft"`
@@ -45,12 +47,38 @@ func listRadios(h host) ([]radio, error) {
 	radios := make([]radio, 0, len(parsed.Devices))
 	for _, d := range parsed.Devices {
 		radios = append(radios, radio{
+			ID:          d.ID,
 			Name:        d.Device,
 			Type:        strings.ToLower(d.Type),
 			SoftBlocked: bool(d.Soft),
 		})
 	}
 	return radios, nil
+}
+
+// rfkillSelector is a command-line identifier this rfkill version accepts.
+// Device names like hci0 are rejected; numeric IDs and types work.
+func rfkillSelector(r radio) string {
+	if r.ID >= 0 {
+		return strconv.Itoa(r.ID)
+	}
+	return r.Type
+}
+
+// matchRadio finds the current device matching a saved radio. Names can change
+// across reboots, so the type is the fallback.
+func matchRadio(current []radio, saved RadioState) *radio {
+	for i := range current {
+		if current[i].Name == saved.Name && current[i].Type == saved.Type {
+			return &current[i]
+		}
+	}
+	for i := range current {
+		if current[i].Type == saved.Type {
+			return &current[i]
+		}
+	}
+	return nil
 }
 
 // rfkillFlag accepts both the string form ("blocked"/"unblocked") used by

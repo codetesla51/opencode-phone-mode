@@ -149,16 +149,21 @@ func (a *app) off(dryRun bool) int {
 
 	st, err := a.store.Load()
 	haveState := err == nil
+	graphicalActive, targetErr := systemUnitActive(a.host, "graphical.target")
+	disruptive := targetErr != nil || !graphicalActive
+	if !disruptive {
+		fmt.Fprintln(a.out, "already in graphical mode: keeping the current target and logind")
+	}
 	var steps []step
 	var planErrs []error
 	if haveState {
-		steps, planErrs = buildOffPlan(cfg, st, a.host)
+		steps, planErrs = buildOffPlan(cfg, st, a.host, disruptive)
 	} else {
 		fmt.Fprintf(a.errOut, "warning: no state file at %s; restoring the config defaults\n", a.store.statePath())
 		if !errors.Is(err, errNoState) {
 			fmt.Fprintf(a.errOut, "warning: %v\n", err)
 		}
-		steps, planErrs = buildFallbackPlan(cfg, a.host)
+		steps, planErrs = buildFallbackPlan(cfg, a.host, disruptive)
 	}
 
 	if !dryRun {

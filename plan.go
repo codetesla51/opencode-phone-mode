@@ -216,17 +216,21 @@ func buildOnPlan(cfg Config, h host) (plan, []error) {
 		blockBluetooth := false
 		var radioSteps []step
 		for _, r := range radios {
-			p.state.Radios = append(p.state.Radios, RadioState(r))
+			p.state.Radios = append(p.state.Radios, RadioState{
+				Name:        r.Name,
+				Type:        r.Type,
+				SoftBlocked: r.SoftBlocked,
+			})
 			if !radioKept(cfg, r.Type) {
 				if r.Type == "bluetooth" {
 					blockBluetooth = true
 				}
-				name := r.Name
+				selector := rfkillSelector(r)
 				radioSteps = append(radioSteps, step{
-					setting: "radio " + name,
+					setting: "radio " + r.Name,
 					current: blockedLabel(r.SoftBlocked),
 					next:    "blocked",
-					apply:   func() error { _, err := h.RunRoot("rfkill", "block", name); return err },
+					apply:   func() error { _, err := h.RunRoot("rfkill", "block", selector); return err },
 				})
 			}
 		}
@@ -352,7 +356,9 @@ func buildOnPlan(cfg Config, h host) (plan, []error) {
 
 // buildOffPlan turns a saved snapshot back into changes. Values are written
 // verbatim, including devices that disappeared; those failures are reported.
-func buildOffPlan(cfg Config, st State, h host) ([]step, []error) {
+// disruptive is false when the graphical target is already active: restarting
+// logind or isolating a target would then tear down the user's live session.
+func buildOffPlan(cfg Config, st State, h host, disruptive bool) ([]step, []error) {
 	var steps []step
 	var errs []error
 	note := func(err error) { errs = append(errs, err) }
@@ -393,6 +399,9 @@ func buildOffPlan(cfg Config, st State, h host) ([]step, []error) {
 					}
 				} else if err := h.RemoveRoot(saved.Path); err != nil {
 					return err
+				}
+				if !disruptive {
+					return nil
 				}
 				_, err := h.RunRoot("systemctl", "restart", "systemd-logind")
 				return err
@@ -436,18 +445,29 @@ func buildOffPlan(cfg Config, st State, h host) ([]step, []error) {
 		})
 	}
 
+	currentRadios, radioErr := listRadios(h)
+	if radioErr != nil {
+		note(fmt.Errorf("read current radios: %w", radioErr))
+	}
 	for _, r := range st.Radios {
-		radio := r
+		saved := r
 		command := "unblock"
-		if radio.SoftBlocked {
+		if saved.SoftBlocked {
 			command = "block"
 		}
+		live := matchRadio(currentRadios, saved)
+		currentLabel := "unknown"
+		selector := saved.Type
+		if live != nil {
+			currentLabel = blockedLabel(live.SoftBlocked)
+			selector = rfkillSelector(*live)
+		}
 		steps = append(steps, step{
-			setting: "radio " + radio.Name,
-			current: blockedLabel(!radio.SoftBlocked),
-			next:    blockedLabel(radio.SoftBlocked),
+			setting: "radio " + saved.Name,
+			current: currentLabel,
+			next:    blockedLabel(saved.SoftBlocked),
 			apply: func() error {
-				_, err := h.RunRoot("rfkill", command, radio.Name)
+				_, err := h.RunRoot("rfkill", command, selector)
 				return err
 			},
 		})
@@ -569,7 +589,7 @@ func buildOffPlan(cfg Config, st State, h host) ([]step, []error) {
 		})
 	}
 
-	if cfg.IsolateTarget {
+	if cfg.IsolateTarget && disruptive {
 		steps = append(steps, step{
 			setting: "target",
 			current: "multi-user.target",
@@ -585,8 +605,9 @@ func buildOffPlan(cfg Config, st State, h host) ([]step, []error) {
 }
 
 // buildFallbackPlan is used when state.json is missing: exact values are
-// unknowable, so the [restore] defaults are applied.
-func buildFallbackPlan(cfg Config, h host) ([]step, []error) {
+// unknowable, so the [restore] defaults are applied. With disruptive false it
+// leaves target and logind alone, so it cannot break a live desktop session.
+func buildFallbackPlan(cfg Config, h host, disruptive bool) ([]step, []error) {
 	var steps []step
 	var errs []error
 	note := func(err error) { errs = append(errs, err) }
@@ -611,36 +632,38 @@ func buildFallbackPlan(cfg Config, h host) ([]step, []error) {
 		}
 	}
 
-	if restore.LidSwitch != "" {
-		dropIn := lidDropIn(restore.LidSwitch)
-		steps = append(steps, step{
-			setting: "lid switch",
-			current: lidSummary(effectiveLidActions(h)),
-			next:    restore.LidSwitch,
-			apply: func() error {
-				if err := h.MkdirRoot(filepath.Dir(lidDropInPath)); err != nil {
+	if disruptive {
+		if restore.LidSwitch != "" {
+			dropIn := lidDropIn(restore.LidSwitch)
+			steps = append(steps, step{
+				setting: "lid switch",
+				current: lidSummary(effectiveLidActions(h)),
+				next:    restore.LidSwitch,
+				apply: func() error {
+					if err := h.MkdirRoot(filepath.Dir(lidDropInPath)); err != nil {
+						return err
+					}
+					if err := h.WriteRoot(lidDropInPath, dropIn); err != nil {
+						return err
+					}
+					_, err := h.RunRoot("systemctl", "restart", "systemd-logind")
 					return err
-				}
-				if err := h.WriteRoot(lidDropInPath, dropIn); err != nil {
+				},
+			})
+		} else if _, err := h.Read(lidDropInPath); err == nil {
+			steps = append(steps, step{
+				setting: "lid switch",
+				current: lidSummary(effectiveLidActions(h)),
+				next:    "system default",
+				apply: func() error {
+					if err := h.RemoveRoot(lidDropInPath); err != nil {
+						return err
+					}
+					_, err := h.RunRoot("systemctl", "restart", "systemd-logind")
 					return err
-				}
-				_, err := h.RunRoot("systemctl", "restart", "systemd-logind")
-				return err
-			},
-		})
-	} else if _, err := h.Read(lidDropInPath); err == nil {
-		steps = append(steps, step{
-			setting: "lid switch",
-			current: lidSummary(effectiveLidActions(h)),
-			next:    "system default",
-			apply: func() error {
-				if err := h.RemoveRoot(lidDropInPath); err != nil {
-					return err
-				}
-				_, err := h.RunRoot("systemctl", "restart", "systemd-logind")
-				return err
-			},
-		})
+				},
+			})
+		}
 	}
 
 	if restore.Governor != "" {
@@ -711,7 +734,7 @@ func buildFallbackPlan(cfg Config, h host) ([]step, []error) {
 			current: blockedLabel(radio.SoftBlocked),
 			next:    blockedLabel(block),
 			apply: func() error {
-				_, err := h.RunRoot("rfkill", command, radio.Name)
+				_, err := h.RunRoot("rfkill", command, rfkillSelector(radio))
 				return err
 			},
 		})
@@ -804,7 +827,7 @@ func buildFallbackPlan(cfg Config, h host) ([]step, []error) {
 		})
 	}
 
-	if cfg.IsolateTarget {
+	if cfg.IsolateTarget && disruptive {
 		current := "multi-user.target"
 		if active, err := systemUnitActive(h, "graphical.target"); err == nil && active {
 			current = "graphical.target"

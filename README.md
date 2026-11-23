@@ -51,6 +51,12 @@ first, or delete the stale state file yourself.
 `battery_exit_percent` and the machine is not charging. `status` prints the
 same warning without blocking anything.
 
+`off` is safe to run from the desktop. If `graphical.target` is already active,
+it restores saved settings but does not restart `systemd-logind` or isolate a
+target, so it cannot blank a working session or bounce SDDM. Radio restore uses
+the numeric `rfkill` ID (falling back to the radio type), because device names
+such as `hci0` are rejected by this system's `rfkill`.
+
 ## Telegram control path
 
 Phone mode is only useful if you can still reach the machine after the desktop

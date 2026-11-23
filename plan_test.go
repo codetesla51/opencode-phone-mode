@@ -73,7 +73,7 @@ func TestBuildOnPlanSnapshotsBeforeChanges(t *testing.T) {
 	if !ok || !strings.Contains(lid, "HandleLidSwitch=ignore") {
 		t.Errorf("lid drop-in = %q, %v", lid, ok)
 	}
-	if !fake.ran("rfkill block hci0") {
+	if !fake.ran("rfkill block 0") {
 		t.Error("bluetooth radio was not blocked")
 	}
 	if fake.ran("rfkill block phy0") {
@@ -189,7 +189,7 @@ func fullState() State {
 
 func TestBuildOffPlanRestoresExactValues(t *testing.T) {
 	fake := newFakeHost()
-	steps, errs := buildOffPlan(phoneConfig(), fullState(), fake)
+	steps, errs := buildOffPlan(phoneConfig(), fullState(), fake, true)
 	if len(errs) != 0 {
 		t.Fatalf("plan errors: %v", errs)
 	}
@@ -212,7 +212,7 @@ func TestBuildOffPlanRestoresExactValues(t *testing.T) {
 	if len(fake.removed) != 1 || fake.removed[0] != lidDropInPath {
 		t.Errorf("lid drop-in removal = %v", fake.removed)
 	}
-	if !fake.ran("rfkill unblock hci0") || !fake.ran("rfkill unblock phy0") {
+	if !fake.ran("rfkill unblock 0") || !fake.ran("rfkill unblock 1") {
 		t.Errorf("radios not unblocked: %v", fake.runs)
 	}
 	if !fake.ran("systemctl start bluetooth.service") {
@@ -246,7 +246,7 @@ func TestBuildOffPlanRestoresLidFileContent(t *testing.T) {
 		Existed: true,
 		Content: "[Login]\nHandleLidSwitch=lock\n",
 	}
-	steps, errs := buildOffPlan(phoneConfig(), st, fake)
+	steps, errs := buildOffPlan(phoneConfig(), st, fake, true)
 	if len(errs) != 0 {
 		t.Fatalf("plan errors: %v", errs)
 	}
@@ -272,7 +272,7 @@ func TestBuildFallbackPlanUsesRestoreDefaults(t *testing.T) {
 	fake.outputs["systemctl --user show -p ActiveState --value -- opencode-telegram.service"] = "inactive"
 	fake.outputs["systemctl --user show -p UnitFileState --value -- opencode-telegram.service"] = "disabled"
 
-	steps, errs := buildFallbackPlan(DefaultConfig(), fake)
+	steps, errs := buildFallbackPlan(DefaultConfig(), fake, true)
 	if len(errs) != 0 {
 		t.Fatalf("plan errors: %v", errs)
 	}
@@ -293,7 +293,7 @@ func TestBuildFallbackPlanUsesRestoreDefaults(t *testing.T) {
 	if !fake.wrote("/sys/devices/system/cpu/intel_pstate/no_turbo", "0") {
 		t.Errorf("turbo not restored: %v", fake.writes)
 	}
-	if !fake.ran("rfkill unblock hci0") || !fake.ran("rfkill unblock phy0") {
+	if !fake.ran("rfkill unblock 0") || !fake.ran("rfkill unblock 1") {
 		t.Errorf("radios not unblocked: %v", fake.runs)
 	}
 	if !fake.ran("loginctl enable-linger testuser") {
